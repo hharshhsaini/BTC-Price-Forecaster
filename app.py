@@ -766,8 +766,15 @@ body {{
     <div class="section-label" style="padding:0;margin-bottom:8px;">
         Rolling Model Stability · 60-Bar Window
     </div>
-    <div class="glass" style="padding:12px;">
+    <div class="glass" style="padding:12px;position:relative;">
         <canvas id="rolling-chart" height="300" style="width: 100%; display: block;"></canvas>
+        <div id="rolling-tooltip" style="display:none; position:absolute; pointer-events:none; 
+                                       background:rgba(15,15,20,0.95); border:1px solid rgba(255,255,255,0.1); 
+                                       padding:8px 12px; border-radius:6px; font-family:monospace; font-size:11px;
+                                       z-index:10; box-shadow: 0 4px 12px rgba(0,0,0,0.5);">
+            <div style="color:#10b981; margin-bottom:4px;" id="tt-cov"></div>
+            <div style="color:#f59e0b;" id="tt-wink"></div>
+        </div>
     </div>
 </div>
 
@@ -1033,6 +1040,46 @@ function drawRollingChart() {{
     ctx.fillRect(pad.l+90, 4, 14, 2);
     ctx.fillStyle = 'rgba(255,255,255,0.4)';
     ctx.fillText('Winkler $', pad.l+108, 10);
+    
+    // Add hover tooltip listeners once
+    if (!canvas.dataset.hoverAttached) {
+        canvas.dataset.hoverAttached = "true";
+        const tooltip = document.getElementById('rolling-tooltip');
+        const ttCov = document.getElementById('tt-cov');
+        const ttWink = document.getElementById('tt-wink');
+        
+        canvas.addEventListener('mousemove', (e) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = e.clientX - rect.left;
+            const y = e.clientY - rect.top;
+            
+            const curCovs = ROLL.cov;
+            const curWinks = ROLL.wink;
+            if(!curCovs || curCovs.length === 0) return;
+            
+            const wCanvas = canvas.offsetWidth - pad.l - pad.r;
+            
+            let idx = Math.round(((x - pad.l) / wCanvas) * (curCovs.length - 1));
+            idx = Math.max(0, Math.min(curCovs.length - 1, idx));
+            
+            ttCov.innerHTML = 'Coverage: ' + curCovs[idx].toFixed(2) + '%';
+            ttWink.innerHTML = 'Winkler: $' + curWinks[idx].toLocaleString('en-US', {maximumFractionDigits:0});
+            
+            tooltip.style.display = 'block';
+            
+            // Keep tooltip inside canvas
+            let tLeft = x + 15;
+            let tTop = y + 15;
+            if (tLeft + 150 > canvas.offsetWidth) tLeft = x - 160;
+            
+            tooltip.style.left = tLeft + 'px';
+            tooltip.style.top = tTop + 'px';
+        });
+        
+        canvas.addEventListener('mouseleave', () => {
+            tooltip.style.display = 'none';
+        });
+    }
 }}
 
 // ── Countdown ────────────────────────────────────────────
