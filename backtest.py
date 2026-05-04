@@ -12,7 +12,7 @@ import requests
 import time
 
 BINANCE_URL = "https://data-api.binance.vision/api/v3/klines"
-ALPHA = 0.03
+ALPHA = 0.01
 
 def fetch_bars(symbol="BTCUSDT", interval="1h", limit=720):
     resp = requests.get(BINANCE_URL, params={"symbol": symbol, "interval": interval, "limit": limit})

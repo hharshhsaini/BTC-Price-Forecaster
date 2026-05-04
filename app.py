@@ -439,7 +439,7 @@ body {{
             <div style="font-size:10px;color:rgba(255,255,255,0.3);
                         letter-spacing:0.06em;">
                 AlphaI &times; Polaris &nbsp;·&nbsp; GBM + Student-t 
-                &nbsp;·&nbsp; 95% Confidence Interval
+                &nbsp;·&nbsp; 99% Confidence Interval
             </div>
         </div>
     </div>
@@ -501,7 +501,7 @@ body {{
         <div id="kpi-lower" class="val-xl" style="color:#10b981;">—</div>
         <div class="divider"></div>
         <div style="font-size:10px;color:rgba(255,255,255,0.35);">
-            95% lower bound
+            99% lower bound
         </div>
     </div>
     
@@ -513,7 +513,7 @@ body {{
         <div id="kpi-upper" class="val-xl" style="color:#ef4444;">—</div>
         <div class="divider"></div>
         <div style="font-size:10px;color:rgba(255,255,255,0.35);">
-            95% upper bound
+            99% upper bound
         </div>
     </div>
     
@@ -709,7 +709,7 @@ body {{
                   stroke="rgba(255,255,255,0.5)" stroke-width="1.5"/>
             <text x="{mx_out+6:.1f}" y="{my_out-3:.1f}"
                   fill="rgba(255,255,255,0.4)" font-size="7"
-                  font-family="monospace">95%</text>
+                  font-family="monospace">99%</text>
             <line x1="{tx}" y1="{ty}" x2="{nx}" y2="{ny}"
                   stroke="{ncol}" stroke-width="2.5" 
                   stroke-linecap="round"/>
@@ -1200,11 +1200,11 @@ async function fetchAndUpdate() {{
         );
         
         // Student-t approximation: use df=2.5 (BTC typical)
-        // 97% CI = 1.5th to 98.5th percentile
-        // t-multiplier for df=2.5, p=0.015: ~3.18
-        // (precomputed: scipy.stats.t.ppf(0.985, 2.5) ≈ 3.18)
+        // 99% CI = 0.5th to 99.5th percentile
+        // t-multiplier for df=2.5, p=0.005: ~7.16
+        // (precomputed: scipy.stats.t.ppf(0.995, 2.5) ≈ 7.16)
         const df = 2.5;
-        const tMult = 3.18; // 97% CI multiplier for df=2.5
+        const tMult = 7.16; // 99% CI multiplier for df=2.5
         
         const lower = price * Math.exp(-tMult * vol);
         const upper = price * Math.exp( tMult * vol);
