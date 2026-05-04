@@ -514,9 +514,9 @@ body {{
     <!-- Support -->
     <div class="glass kpi-card">
         <div class="label" style="margin-bottom:8px;">
-            <span style="color:#10b981;">&#9660;</span> Support (Low)
+            <span style="color:#ef4444;">&#9660;</span> Support (Low)
         </div>
-        <div id="kpi-lower" class="val-xl" style="color:#10b981;">—</div>
+        <div id="kpi-lower" class="val-xl" style="color:#ef4444;">—</div>
         <div class="divider"></div>
         <div style="font-size:10px;color:rgba(255,255,255,0.35);">
             99% lower bound
@@ -526,9 +526,9 @@ body {{
     <!-- Resistance -->
     <div class="glass kpi-card">
         <div class="label" style="margin-bottom:8px;">
-            <span style="color:#ef4444;">&#9650;</span> Resistance (High)
+            <span style="color:#10b981;">&#9650;</span> Resistance (High)
         </div>
-        <div id="kpi-upper" class="val-xl" style="color:#ef4444;">—</div>
+        <div id="kpi-upper" class="val-xl" style="color:#10b981;">—</div>
         <div class="divider"></div>
         <div style="font-size:10px;color:rgba(255,255,255,0.35);">
             99% upper bound
@@ -1289,7 +1289,7 @@ async function fetchAndUpdate() {{
         if (!upperPriceLine) {{
             upperPriceLine = candleSeries.createPriceLine({{
                 price: upper,
-                color: '#ef4444',
+                color: '#10b981',
                 lineWidth: 1,
                 lineStyle: LightweightCharts.LineStyle.Dashed,
                 axisLabelVisible: true,
@@ -1297,7 +1297,7 @@ async function fetchAndUpdate() {{
             }});
             lowerPriceLine = candleSeries.createPriceLine({{
                 price: lower,
-                color: '#10b981',
+                color: '#ef4444',
                 lineWidth: 1,
                 lineStyle: LightweightCharts.LineStyle.Dashed,
                 axisLabelVisible: true,
