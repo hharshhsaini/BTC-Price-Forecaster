@@ -4,14 +4,15 @@ BTC/USDT 1-hour candles, GBM + Student-t model.
 Run: python backtest.py
 """
 
-import requests
 import json
 import numpy as np
 from scipy import stats
 from datetime import datetime, timezone
+import requests
+import time
 
 BINANCE_URL = "https://data-api.binance.vision/api/v3/klines"
-
+ALPHA = 0.03
 
 def fetch_bars(symbol="BTCUSDT", interval="1h", limit=720):
     resp = requests.get(BINANCE_URL, params={"symbol": symbol, "interval": interval, "limit": limit})
@@ -21,26 +22,49 @@ def fetch_bars(symbol="BTCUSDT", interval="1h", limit=720):
     timestamps = [int(bar[0]) for bar in data]
     return closes, timestamps
 
+def compute_adaptive_volatility(log_returns, short=6, medium=24, long=168):
+    def ewm_vol(returns, span):
+        weights = np.exp(-np.arange(len(returns))[::-1] / span)
+        weights /= weights.sum()
+        mean = np.sum(weights * returns)
+        variance = np.sum(weights * (returns - mean) ** 2)
+        return np.sqrt(variance)
+    if len(log_returns) < long:
+        return np.std(log_returns), None
+    v_short = ewm_vol(log_returns[-short:], short)
+    v_medium = ewm_vol(log_returns[-medium:], medium)
+    v_long = ewm_vol(log_returns[-long:], long)
+    blended = 0.5 * v_short + 0.3 * v_medium + 0.2 * v_long
+    floor = v_long * 0.5
+    blended = max(blended, floor)
+    return blended, {"short": v_short, "medium": v_medium, "long": v_long}
 
-def predict_range(closes, n_sim=10000, vol_window=24, fit_window=168):
-    """Predict 95% CI for next bar using GBM + Student-t. Uses ONLY closes passed in."""
+def fit_student_t(returns):
+    if len(returns) < 3: return 3.0, 0.0, 1e-4
+    df, loc, scale = stats.t.fit(returns)
+    return max(df, 2.01), loc, scale
+
+def predict_range(closes, n_sims=10000, short_w=6, med_w=24, long_w=168, alpha=ALPHA):
     log_returns = np.diff(np.log(closes))
-    fit_data = log_returns[-fit_window:] if len(log_returns) >= fit_window else log_returns
-    df_t, loc_t, scale_t = stats.t.fit(fit_data)
-    recent_vol = np.std(log_returns[-vol_window:]) if len(log_returns) >= vol_window else np.std(log_returns)
-    global_vol = np.std(fit_data)
-    vol_ratio = recent_vol / global_vol if global_vol > 0 else 1.0
-    adjusted_scale = scale_t * vol_ratio
-    last_price = closes[-1]
-    sim_returns = stats.t.rvs(df=df_t, loc=loc_t, scale=adjusted_scale, size=n_sim)
-    sim_prices = last_price * np.exp(sim_returns)
-    lower = float(np.percentile(sim_prices, 2.5))
-    upper = float(np.percentile(sim_prices, 97.5))
+    fit_returns = log_returns[-long_w:] if len(log_returns) >= long_w else log_returns
+    df, loc, scale = fit_student_t(fit_returns)
+    blended_vol, vol_breakdown = compute_adaptive_volatility(log_returns, short_w, med_w, long_w)
+    if vol_breakdown:
+        global_vol = np.std(fit_returns)
+        vol_ratio = blended_vol / global_vol if global_vol > 1e-12 else 1.0
+    else:
+        vol_ratio = 1.0
+    scaled_scale = scale * vol_ratio
+    rng = np.random.default_rng(int(time.time()))
+    sampled = stats.t.rvs(df=df, loc=loc, scale=scaled_scale, size=n_sims, random_state=rng)
+    next_prices = closes[-1] * np.exp(sampled)
+    lower_pct = (alpha / 2) * 100
+    upper_pct = (1 - alpha / 2) * 100
+    lower = float(np.percentile(next_prices, lower_pct))
+    upper = float(np.percentile(next_prices, upper_pct))
     return lower, upper
 
-
 def evaluate(records):
-    alpha = 0.05
     coverage_flags, widths, winklers = [], [], []
     for r in records:
         lo, hi, actual = r["lower"], r["upper"], r["actual"]
@@ -52,13 +76,12 @@ def evaluate(records):
             winklers.append(width)
         else:
             miss = min(abs(actual - lo), abs(actual - hi))
-            winklers.append(width + (2 / alpha) * miss)
+            winklers.append(width + (2 / ALPHA) * miss)
     return {
-        "coverage_95": round(np.mean(coverage_flags), 4),
+        "coverage": round(np.mean(coverage_flags), 4),
         "mean_width": round(np.mean(widths), 2),
-        "mean_winkler_95": round(np.mean(winklers), 2),
+        "mean_winkler": round(np.mean(winklers), 2),
     }
-
 
 def run_backtest():
     print("Fetching 720 bars from Binance mirror...")
@@ -66,10 +89,9 @@ def run_backtest():
     print(f"Got {len(closes)} bars. Running rolling backtest...")
 
     records = []
-    MIN_HISTORY = 50  # need at least 50 bars to fit
+    MIN_HISTORY = 168
 
     for i in range(MIN_HISTORY, len(closes)):
-        # STRICT no-peek: only use closes[0..i-1] to predict closes[i]
         history = closes[:i]
         actual = closes[i]
         ts_ms = timestamps[i]
@@ -94,13 +116,12 @@ def run_backtest():
     metrics = evaluate(records)
     print("\n=== BACKTEST RESULTS ===")
     print(f"  Bars predicted : {len(records)}")
-    print(f"  Coverage 95%   : {metrics['coverage_95']*100:.2f}%  (target ~95%)")
+    print(f"  Coverage       : {metrics['coverage']*100:.2f}%  (target ~{(1-ALPHA)*100:.0f}%)")
     print(f"  Mean width     : ${metrics['mean_width']:,.2f}")
-    print(f"  Mean Winkler   : ${metrics['mean_winkler_95']:,.2f}  (lower = better)")
+    print(f"  Mean Winkler   : ${metrics['mean_winkler']:,.2f}  (lower = better)")
     print("========================")
     print("Saved to backtest_results.jsonl")
     return metrics
-
 
 if __name__ == "__main__":
     run_backtest()
