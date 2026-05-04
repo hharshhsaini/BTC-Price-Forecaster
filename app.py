@@ -417,6 +417,24 @@ body {{
     padding: 0 20px;
     margin-bottom: 6px;
 }}
+.tf-btn {{
+    padding: 3px 10px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.4);
+    cursor: pointer;
+    transition: all 0.2s;
+    user-select: none;
+}}
+.tf-btn:hover {{
+    color: rgba(255,255,255,0.8);
+    background: rgba(255,255,255,0.05);
+}}
+.tf-btn.active {{
+    background: rgba(255,255,255,0.1);
+    color: white;
+}}
 </style>
 </head>
 <body>
@@ -558,17 +576,28 @@ body {{
     <!-- Chart -->
     <div class="glass" style="padding:12px;overflow:hidden;">
         <div id="ohlc-bar" style="font-size:11px;color:rgba(255,255,255,0.5);
-                                   font-family:monospace;margin-bottom:6px;
-                                   display:flex;align-items:center;flex-wrap:wrap;gap:12px;">
-            <span style="font-weight:600;color:rgba(255,255,255,0.7);">
-                BTCUSDT · BINANCE
-            </span>
-            <span id="c-t" style="color:rgba(255,255,255,0.9);">—</span>
-            <span>O <span id="c-o" style="color:rgba(255,255,255,0.7);">—</span></span>
-            <span>H <span id="c-h" style="color:#10b981;">—</span></span>
-            <span>L <span id="c-l" style="color:#ef4444;">—</span></span>
-            <span>C <span id="c-c" style="color:#F7931A;">—</span></span>
-            <span>Vol <span id="c-v" style="color:rgba(255,255,255,0.7);">—</span></span>
+                                   font-family:monospace;margin-bottom:12px;
+                                   display:flex;align-items:center;flex-wrap:wrap;gap:12px;
+                                   justify-content:space-between;">
+            <div style="display:flex;gap:12px;align-items:center;">
+                <span style="font-weight:600;color:rgba(255,255,255,0.7);">
+                    BTCUSDT · BINANCE
+                </span>
+                <span id="c-t" style="color:rgba(255,255,255,0.9);">—</span>
+                <span>O <span id="c-o" style="color:rgba(255,255,255,0.7);">—</span></span>
+                <span>H <span id="c-h" style="color:#10b981;">—</span></span>
+                <span>L <span id="c-l" style="color:#ef4444;">—</span></span>
+                <span>C <span id="c-c" style="color:#F7931A;">—</span></span>
+                <span>Vol <span id="c-v" style="color:rgba(255,255,255,0.7);">—</span></span>
+            </div>
+            <div id="timeframe-selector" style="display:flex;gap:2px;background:rgba(255,255,255,0.03);padding:3px;border-radius:6px;border:1px solid rgba(255,255,255,0.05);">
+                <div class="tf-btn" data-tf="1m">1M</div>
+                <div class="tf-btn" data-tf="5m">5M</div>
+                <div class="tf-btn" data-tf="15m">15M</div>
+                <div class="tf-btn active" data-tf="1h">1H</div>
+                <div class="tf-btn" data-tf="4h">4H</div>
+                <div class="tf-btn" data-tf="1d">1D</div>
+            </div>
         </div>
         <div id="chart" style="height:400px;"></div>
     </div>
@@ -1113,11 +1142,23 @@ let forecastLower = null;
 let forecastUpper = null;
 let chartInitialized = false;
 
+let currentInterval = '1h';
+
+// Bind timeframe buttons
+document.querySelectorAll('.tf-btn').forEach(btn => {{
+    btn.addEventListener('click', (e) => {{
+        document.querySelectorAll('.tf-btn').forEach(b => b.classList.remove('active'));
+        e.target.classList.add('active');
+        currentInterval = e.target.getAttribute('data-tf');
+        fetchAndUpdate();
+    }});
+}});
+
 async function fetchAndUpdate() {{
     try {{
-        // Fetch bars + ticker in parallel
+        // Fetch chart bars (varies) + ticker + model bars (always 1h)
         const [barsRes, tickerRes, forecastRes] = await Promise.all([
-            fetch(BINANCE+'/klines?symbol=BTCUSDT&interval=1h&limit=72'),
+            fetch(BINANCE+`/klines?symbol=BTCUSDT&interval=${{currentInterval}}&limit=150`),
             fetch(BINANCE+'/ticker/24hr?symbol=BTCUSDT'),
             fetch(BINANCE+'/klines?symbol=BTCUSDT&interval=1h&limit=500')
         ]);
