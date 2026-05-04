@@ -1314,4 +1314,4 @@ window.addEventListener('resize', drawRollingChart);
 """
 
 # Render everything as a single component
-components.html(dashboard_html, height=2400, scrolling=True)
+components.html(dashboard_html, height=1700, scrolling=True)
