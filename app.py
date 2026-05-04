@@ -836,8 +836,8 @@ const chart = LightweightCharts.createChart(chartEl, {{
         fontFamily: "'SF Mono', monospace",
     }},
     grid: {{
-        vertLines: {{ color:'rgba(255,255,255,0.04)' }},
-        horzLines: {{ color:'rgba(255,255,255,0.04)' }},
+        vertLines: {{ color:'rgba(255,255,255,0.02)' }},
+        horzLines: {{ color:'rgba(255,255,255,0.05)', style: LightweightCharts.LineStyle.Dashed }},
     }},
     crosshair: {{
         mode: LightweightCharts.CrosshairMode.Normal,
@@ -845,8 +845,8 @@ const chart = LightweightCharts.createChart(chartEl, {{
         horzLine: {{ color:'rgba(255,255,255,0.15)', width:1 }},
     }},
     rightPriceScale: {{
-        borderColor: 'rgba(255,255,255,0.06)',
-        textColor: 'rgba(255,255,255,0.3)',
+        borderColor: 'rgba(255,255,255,0.1)',
+        textColor: 'rgba(255,255,255,0.5)',
         scaleMargins: {{ top:0.08, bottom:0.22 }},
     }},
     timeScale: {{
@@ -885,22 +885,8 @@ chart.priceScale('vol').applyOptions({{
     scaleMargins: {{ top:0.82, bottom:0 }},
 }});
 
-const upperLine = chart.addLineSeries({{
-    color: 'rgba(239,68,68,0.7)',
-    lineWidth: 1,
-    lineStyle: LightweightCharts.LineStyle.Dashed,
-    lastValueVisible: true,
-    priceLineVisible: false,
-    title: 'Upper',
-}});
-const lowerLine = chart.addLineSeries({{
-    color: 'rgba(16,185,129,0.7)',
-    lineWidth: 1,
-    lineStyle: LightweightCharts.LineStyle.Dashed,
-    lastValueVisible: true,
-    priceLineVisible: false,
-    title: 'Lower',
-}});
+let upperPriceLine = null;
+let lowerPriceLine = null;
 
 // OHLC crosshair display
 chart.subscribeCrosshairMove(p => {{
@@ -1259,16 +1245,27 @@ async function fetchAndUpdate() {{
         forecastUpper = upper;
         
         // Update forecast lines on chart
-        const lastTime = last.time;
-        const nextTime = lastTime + 3600;
-        upperLine.setData([
-            {{time:lastTime, value:upper}},
-            {{time:nextTime, value:upper}},
-        ]);
-        lowerLine.setData([
-            {{time:lastTime, value:lower}},
-            {{time:nextTime, value:lower}},
-        ]);
+        if (!upperPriceLine) {{
+            upperPriceLine = candleSeries.createPriceLine({{
+                price: upper,
+                color: '#ef4444',
+                lineWidth: 1,
+                lineStyle: LightweightCharts.LineStyle.Dashed,
+                axisLabelVisible: true,
+                title: 'Upper',
+            }});
+            lowerPriceLine = candleSeries.createPriceLine({{
+                price: lower,
+                color: '#10b981',
+                lineWidth: 1,
+                lineStyle: LightweightCharts.LineStyle.Dashed,
+                axisLabelVisible: true,
+                title: 'Lower',
+            }});
+        }} else {{
+            upperPriceLine.applyOptions({{ price: upper }});
+            lowerPriceLine.applyOptions({{ price: lower }});
+        }}
         
         // ── KPI cards update ──────────────────────────────
         const fmt = v => '$'+v.toLocaleString('en-US',
