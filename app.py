@@ -1042,13 +1042,13 @@ function drawRollingChart() {{
     ctx.fillText('Winkler $', pad.l+108, 10);
     
     // Add hover tooltip listeners once
-    if (!canvas.dataset.hoverAttached) {
+    if (!canvas.dataset.hoverAttached) {{
         canvas.dataset.hoverAttached = "true";
         const tooltip = document.getElementById('rolling-tooltip');
         const ttCov = document.getElementById('tt-cov');
         const ttWink = document.getElementById('tt-wink');
         
-        canvas.addEventListener('mousemove', (e) => {
+        canvas.addEventListener('mousemove', (e) => {{
             const rect = canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
@@ -1063,7 +1063,7 @@ function drawRollingChart() {{
             idx = Math.max(0, Math.min(curCovs.length - 1, idx));
             
             ttCov.innerHTML = 'Coverage: ' + curCovs[idx].toFixed(2) + '%';
-            ttWink.innerHTML = 'Winkler: $' + curWinks[idx].toLocaleString('en-US', {maximumFractionDigits:0});
+            ttWink.innerHTML = 'Winkler: $' + curWinks[idx].toLocaleString('en-US', {{maximumFractionDigits:0}});
             
             tooltip.style.display = 'block';
             
@@ -1074,12 +1074,12 @@ function drawRollingChart() {{
             
             tooltip.style.left = tLeft + 'px';
             tooltip.style.top = tTop + 'px';
-        });
+        }});
         
-        canvas.addEventListener('mouseleave', () => {
+        canvas.addEventListener('mouseleave', () => {{
             tooltip.style.display = 'none';
-        });
-    }
+        }});
+    }}
 }}
 
 // ── Countdown ────────────────────────────────────────────
