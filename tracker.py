@@ -38,44 +38,69 @@ def get_binance_klines(limit=500):
     return res.json()
 
 def process_tracker():
-    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Running tracker...")
-    klines = get_binance_klines(limit=500)
-    
+    print(f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}] Waking up to process...")
+    try:
+        klines = get_binance_klines(limit=500)
+    except Exception as e:
+        print(f"Failed to fetch Binance data: {e}")
+        return
+
     closes = [float(k[4]) for k in klines]
     current_price = closes[-1]
     
     # Klines format: [open_time, open, high, low, close, volume, close_time, ...]
     current_candle_open_ts = klines[-1][0]
     current_candle_open_dt = datetime.fromtimestamp(current_candle_open_ts / 1000, tz=timezone.utc)
-    next_candle_open_dt = current_candle_open_dt + timedelta(hours=1)
     
-    # 1. Evaluate the *previous* candle (which just closed)
-    previous_candle_open_ts = klines[-2][0]
-    previous_candle_open_dt = datetime.fromtimestamp(previous_candle_open_ts / 1000, tz=timezone.utc)
-    previous_close_price = float(klines[-2][4])
-    
-    # Check if we have a prediction for the previous candle in the DB
+    # 1. Catch-up Evaluation Logic
+    # Find all PENDING predictions (actual_close is null) where candle_time < current_candle_open_dt
     try:
-        prev_res = supabase.table("predictions").select("*").eq("candle_time", previous_candle_open_dt.isoformat()).execute()
-        if prev_res.data:
-            record = prev_res.data[0]
-            if record.get("actual_close") is None:
-                # We need to evaluate it
-                lower = record["lower_bound"]
-                upper = record["upper_bound"]
-                is_hit = bool(lower <= previous_close_price <= upper)
-                
-                print(f"Evaluating previous candle ({previous_candle_open_dt}): Close={previous_close_price}, Bounds=[{lower}, {upper}], Hit={is_hit}")
-                
-                supabase.table("predictions").update({
-                    "actual_close": previous_close_price,
-                    "is_hit": is_hit
-                }).eq("id", record["id"]).execute()
+        res = supabase.table("predictions").select("*").is_("actual_close", "null").lt("candle_time", current_candle_open_dt.isoformat()).execute()
+        pending = res.data
+        if pending:
+            print(f"Found {len(pending)} pending historical predictions to evaluate.")
+            
+            # Map klines to a dictionary of open_dt string -> actual_close
+            kline_map = {}
+            for k in klines:
+                dt = datetime.fromtimestamp(k[0] / 1000, tz=timezone.utc).isoformat()
+                kline_map[dt] = float(k[4]) # close price
+            
+            for p in pending:
+                p_dt = p["candle_time"]
+                # some DBs return +00:00, python isoformat might differ, try to match
+                if p_dt in kline_map:
+                    actual = kline_map[p_dt]
+                    lower = p["lower_bound"]
+                    upper = p["upper_bound"]
+                    is_hit = bool(lower <= actual <= upper)
+                    
+                    print(f"Updating PENDING candle {p_dt}: Close={actual}, Hit={is_hit}")
+                    supabase.table("predictions").update({
+                        "actual_close": actual,
+                        "is_hit": is_hit
+                    }).eq("id", p["id"]).execute()
+                else:
+                    # Sometimes time formats differ slightly (e.g. trailing Z vs +00:00). We normalize
+                    try:
+                        p_dt_obj = datetime.fromisoformat(p_dt.replace('Z', '+00:00'))
+                        p_dt_norm = p_dt_obj.isoformat()
+                        if p_dt_norm in kline_map:
+                            actual = kline_map[p_dt_norm]
+                            lower = p["lower_bound"]
+                            upper = p["upper_bound"]
+                            is_hit = bool(lower <= actual <= upper)
+                            print(f"Updating PENDING candle {p_dt}: Close={actual}, Hit={is_hit}")
+                            supabase.table("predictions").update({
+                                "actual_close": actual,
+                                "is_hit": is_hit
+                            }).eq("id", p["id"]).execute()
+                    except:
+                        pass
     except Exception as e:
-        print(f"Error evaluating previous candle: {e}")
-    
-    # 2. Generate prediction for the *next* candle (the one we are predicting)
-    # The current candle is still open, we are predicting where it will be at close / where the next one opens
+        print(f"Error during catch-up evaluation: {e}")
+
+    # 2. Generate prediction for the *current* open candle
     log_rets = np.diff(np.log(closes))
     recent = log_rets[-168:]
     v6 = ewm_vol(recent[-6:], 6)
@@ -86,26 +111,32 @@ def process_tracker():
     lower_bound = current_price * np.exp(-T_MULT * vol)
     upper_bound = current_price * np.exp(T_MULT * vol)
     
-    print(f"Prediction for candle {current_candle_open_dt}: Lower={lower_bound}, Upper={upper_bound}")
-    
-    # 3. Save prediction to DB (upsert based on candle_time)
+    # 3. Upsert prediction into DB for the current open candle
     try:
         data = {
             "candle_time": current_candle_open_dt.isoformat(),
             "lower_bound": float(lower_bound),
             "upper_bound": float(upper_bound),
         }
-        # Insert or update
-        # Because we only want 1 prediction per candle, we can check if it exists
         existing = supabase.table("predictions").select("id").eq("candle_time", current_candle_open_dt.isoformat()).execute()
         if not existing.data:
             supabase.table("predictions").insert(data).execute()
-            print("Successfully inserted prediction.")
+            print(f"New prediction inserted for {current_candle_open_dt}.")
         else:
-            supabase.table("predictions").update(data).eq("id", existing.data[0]["id"]).execute()
-            print("Successfully updated prediction.")
+            # Optionally update the live bounds while the candle is open
+            pass 
     except Exception as e:
         print(f"Error saving prediction: {e}")
 
 if __name__ == "__main__":
-    process_tracker()
+    print("Starting continuous tracker daemon...")
+    while True:
+        process_tracker()
+        
+        # Calculate how many seconds until the next minute starts to keep it aligned
+        now = datetime.now()
+        sleep_secs = 60 - now.second
+        
+        # We only really need to run this every ~5 minutes or so, since we are dealing with 1h candles, 
+        # but running every 1 minute ensures we catch the hour boundary precisely.
+        time.sleep(sleep_secs)
