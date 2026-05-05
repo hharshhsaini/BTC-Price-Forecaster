@@ -24,7 +24,7 @@ if not supabase_url or not supabase_key:
 supabase: Client = create_client(supabase_url, supabase_key)
 
 def ewm_vol(rets, span):
-    if not rets: return 0.001
+    if len(rets) == 0: return 0.001
     weights = np.exp(-np.arange(len(rets))[::-1]/span)
     w_sum = np.sum(weights)
     mean = np.sum(rets * weights) / w_sum
