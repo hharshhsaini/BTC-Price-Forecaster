@@ -7,7 +7,10 @@ from datetime import datetime, timezone, timedelta
 import requests
 import os
 import math
+from supabase import create_client, Client
+from dotenv import load_dotenv
 
+load_dotenv()
 st.set_page_config(
     page_title="BTC Price Forecaster",
     page_icon="₿",
@@ -62,19 +65,33 @@ def load_backtest_metrics(path="backtest_results.jsonl"):
     }
 
 # ── Load prediction history (Python side, runs once) ───────────────
-def load_history(path="prediction_history.jsonl"):
-    if not os.path.exists(path):
+def load_history():
+    url = os.environ.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_KEY")
+    if not url or not key:
         return []
-    rows = []
-    with open(path) as f:
-        for line in f:
-            line = line.strip()
-            if line:
-                try: rows.append(json.loads(line))
-                except: pass
-    # Sort newest first
-    rows.sort(key=lambda r: r.get("candle_open",""), reverse=True)
-    return rows[:50]  # last 50 only
+        
+    try:
+        supabase: Client = create_client(url, key)
+        res = supabase.table("predictions").select("*").order("candle_time", desc=True).limit(50).execute()
+        
+        rows = []
+        for r in res.data:
+            rows.append({
+                "candle_open": r["candle_time"],
+                "generated_at": r["generated_at"],
+                "lower": r["lower_bound"],
+                "upper": r["upper_bound"],
+                "actual_at_close": r["actual_close"],
+                "in_range": r["is_hit"],
+                "_is_gap": r.get("is_gap", False),
+                "_is_summary": False,
+                "_count": 0
+            })
+        return rows
+    except Exception as e:
+        print(f"Error loading from Supabase: {e}")
+        return []
 
 # ── Load rolling backtest data ─────────────────────────────────────
 def load_rolling_data(path="backtest_results.jsonl", window=60):
