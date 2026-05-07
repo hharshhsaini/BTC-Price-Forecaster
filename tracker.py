@@ -114,8 +114,13 @@ def process_tracker():
             print(f"Error backfilling {candle_dt}: {e}")
 
 if __name__ == "__main__":
-    print("Starting robust tracker daemon (Gap-filling mode)...")
-    while True:
+    if os.environ.get("GITHUB_ACTIONS") == "true":
+        print("Running in GitHub Actions mode (single execution)...")
         process_tracker()
-        # Sleep until the start of the next minute
-        time.sleep(60 - datetime.now().second)
+    else:
+        print("Starting robust tracker daemon (Gap-filling mode)...")
+        while True:
+            process_tracker()
+            # Sleep until the start of the next minute
+            time.sleep(60 - datetime.now().second)
+
