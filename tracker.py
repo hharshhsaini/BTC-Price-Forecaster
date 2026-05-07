@@ -77,8 +77,8 @@ def process_tracker():
         print(f"Error during evaluation: {e}")
 
     # 2. BACKFILLING & PREDICTION
-    # We check the last 24 candles to ensure no gaps
-    for i in range(len(klines) - 24, len(klines)):
+    # We check the last 168 candles (1 week) to ensure no gaps
+    for i in range(len(klines) - 168, len(klines)):
         k = klines[i]
         candle_dt = datetime.fromtimestamp(k[0] / 1000, tz=timezone.utc).isoformat()
         

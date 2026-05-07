@@ -8,9 +8,28 @@ import requests
 import os
 import math
 from supabase import create_client, Client
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # dotenv not needed on Streamlit Cloud
 
-load_dotenv()
+def get_supabase_creds():
+    """Get Supabase credentials from st.secrets (Cloud) or os.environ (local)."""
+    url = None
+    key = None
+    # Try Streamlit Cloud secrets first
+    try:
+        url = st.secrets["SUPABASE_URL"]
+        key = st.secrets["SUPABASE_KEY"]
+    except (KeyError, AttributeError, FileNotFoundError):
+        pass
+    # Fall back to environment variables
+    if not url:
+        url = os.environ.get("SUPABASE_URL")
+    if not key:
+        key = os.environ.get("SUPABASE_KEY")
+    return url, key
 st.set_page_config(
     page_title="BTC Price Forecaster",
     page_icon="₿",
@@ -64,10 +83,10 @@ def load_backtest_metrics(path="backtest_results.jsonl"):
         "n": len(records)
     }
 
-# ── Load prediction history (Python side, runs once) ───────────────
+# ── Load prediction history (Python side) ──────────────────────────
+@st.cache_data(ttl=60)  # Cache for 60 seconds to avoid hammering DB on every rerun
 def load_history():
-    url = os.environ.get("SUPABASE_URL")
-    key = os.environ.get("SUPABASE_KEY")
+    url, key = get_supabase_creds()
     if not url or not key:
         return []
         
