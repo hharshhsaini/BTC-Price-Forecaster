@@ -84,10 +84,11 @@ def load_backtest_metrics(path="backtest_results.jsonl"):
     }
 
 # ── Load prediction history (Python side) ──────────────────────────
-@st.cache_data(ttl=60)  # Cache for 60 seconds to avoid hammering DB on every rerun
+@st.cache_data(ttl=10)  # Cache for 10 seconds for more frequent updates
 def load_history():
     url, key = get_supabase_creds()
     if not url or not key:
+        print("⚠️  No Supabase credentials found")
         return []
         
     try:
@@ -107,9 +108,12 @@ def load_history():
                 "_is_summary": False,
                 "_count": 0
             })
+        print(f"✓ Loaded {len(rows)} predictions from database")
         return rows
     except Exception as e:
-        print(f"Error loading from Supabase: {e}")
+        print(f"❌ Error loading from Supabase: {e}")
+        import traceback
+        traceback.print_exc()
         return []
 
 # ── Load rolling backtest data ─────────────────────────────────────
