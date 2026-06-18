@@ -7,6 +7,7 @@ from datetime import datetime, timezone, timedelta
 import requests
 import os
 import math
+import time
 from supabase import create_client, Client
 try:
     from dotenv import load_dotenv
@@ -36,6 +37,9 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed"
 )
+
+# Auto-refresh every 10 seconds
+st_autorefresh_interval = 10 * 1000  # 10 seconds in milliseconds
 
 # Hide ALL streamlit chrome
 st.markdown("""
@@ -84,7 +88,7 @@ def load_backtest_metrics(path="backtest_results.jsonl"):
     }
 
 # ── Load prediction history (Python side) ──────────────────────────
-@st.cache_data(ttl=10)  # Cache for 10 seconds for more frequent updates
+@st.cache_data(ttl=5)  # Cache for only 5 seconds for real-time updates
 def load_history():
     url, key = get_supabase_creds()
     if not url or not key:
@@ -108,7 +112,6 @@ def load_history():
                 "_is_summary": False,
                 "_count": 0
             })
-        print(f"✓ Loaded {len(rows)} predictions from database")
         return rows
     except Exception as e:
         print(f"❌ Error loading from Supabase: {e}")
@@ -1440,3 +1443,13 @@ window.addEventListener('resize', drawRollingChart);
 
 # Render everything as a single component
 components.html(dashboard_html, height=1700, scrolling=True)
+
+# Auto-refresh every 10 seconds to keep data fresh
+st.markdown("""
+<script>
+    // Auto-refresh page every 10 seconds
+    setTimeout(function(){
+        window.parent.location.reload();
+    }, 10000);
+</script>
+""", unsafe_allow_html=True)
